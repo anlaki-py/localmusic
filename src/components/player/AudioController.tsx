@@ -14,17 +14,18 @@ import { useAudioContext } from '@/context/AudioContext';
 import { setupAudioContext, resumeAudioContext } from '@/utils/audio';
 
 export const AudioController = () => {
-const {
-  currentTrack,
-  isPlaying,
-  volume,
-  playbackSpeed,
-  isDJMode,
-  nextTrack,
-  setTime,
-  setDuration,
-  setPlaying,
-} = usePlayerStore();
+  const {
+    currentTrack,
+    isPlaying,
+    volume,
+    playbackSpeed,
+    repeatMode,
+    nextTrack,
+    setTime,
+    setDuration,
+    setPlaying,
+    setBuffering,
+  } = usePlayerStore();
 
   const { audioRef } = useAudioContext();
   const isLoadingNewTrack = useRef(false);
@@ -71,24 +72,18 @@ const {
     if (isPlaying) audio.load();
   }, [currentTrack, audioRef, isPlaying]);
 
-  // Handle play/pause - skip if DJ mode is active
+  // Handle play/pause
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack) return;
     if (isLoadingNewTrack.current) return;
-
-    // DJ mode handles its own audio
-    if (isDJMode) {
-      audio.pause();
-      return;
-    }
 
     if (isPlaying) {
       audio.play().catch(() => setPlaying(false));
     } else {
       audio.pause();
     }
-  }, [isPlaying, audioRef, currentTrack, setPlaying, isDJMode]);
+  }, [isPlaying, audioRef, currentTrack, setPlaying]);
 
   // Sync volume
   useEffect(() => {
@@ -105,28 +100,43 @@ const {
     }
   }, [playbackSpeed, audioRef]);
 
-  const handleEnded = useCallback(() => nextTrack(), [nextTrack]);
+  const handleEnded = useCallback(() => {
+    if (repeatMode === 'one') {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(() => setPlaying(false));
+      }
+      return;
+    }
+    nextTrack();
+  }, [nextTrack, repeatMode, audioRef, setPlaying]);
 
   const handleCanPlay = useCallback(() => {
     isLoadingNewTrack.current = false;
+    setBuffering(false);
     if (audioRef.current) {
       audioRef.current.playbackRate = playbackSpeed / 100;
       audioRef.current.preservesPitch = false;
     }
-    // Don't auto-play if DJ mode is active
-    if (isDJMode) {
-      audioRef.current?.pause();
-      return;
-    }
     if (isPlaying) {
       audioRef.current?.play().catch(() => setPlaying(false));
     }
-  }, [isPlaying, audioRef, setPlaying, playbackSpeed, isDJMode]);
+  }, [isPlaying, audioRef, setPlaying, playbackSpeed, setBuffering]);
+
+  const handleWaiting = useCallback(() => {
+    setBuffering(true);
+  }, [setBuffering]);
+
+  const handlePlaying = useCallback(() => {
+    setBuffering(false);
+  }, [setBuffering]);
 
   const handleError = useCallback((e: React.SyntheticEvent<HTMLAudioElement>) => {
     console.error('Audio Error:', e.currentTarget.error);
     isLoadingNewTrack.current = false;
-  }, []);
+    setBuffering(false);
+  }, [setBuffering]);
 
   const handleSeeked = useCallback(() => {
     if (isPlaying && audioRef.current?.currentTime === 0) {
@@ -145,6 +155,8 @@ const {
       onEnded={handleEnded}
       onSeeked={handleSeeked}
       onError={handleError}
+      onWaiting={handleWaiting}
+      onPlaying={handlePlaying}
     />
   );
 };

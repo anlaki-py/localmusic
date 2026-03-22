@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
-import { MUSIC_DIR } from '../constants/config';
+import { getMusicDir } from '../constants/config';
 import { getMimeType } from '../constants/mimeTypes';
 
 export const streamRouter = Router();
@@ -26,7 +26,7 @@ streamRouter.get('/stream', async (req: Request, res: Response) => {
 
   // Security: Ensure path is within MUSIC_DIR
   const resolvedPath = path.resolve(filePath);
-  if (!resolvedPath.startsWith(MUSIC_DIR)) {
+  if (!resolvedPath.startsWith(getMusicDir())) {
     return res.status(403).send('Access denied');
   }
 

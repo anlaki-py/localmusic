@@ -11,6 +11,14 @@ import { COVERS_DIR, LIBRARY_CACHE_FILE } from '../constants/config';
 import { AUDIO_EXTENSIONS } from '../constants/mimeTypes';
 
 /**
+ * Synced lyric line with timestamp.
+ */
+interface SyncedLyric {
+  time: number;
+  text: string;
+}
+
+/**
  * Track metadata extracted from audio files.
  */
 export interface Track {
@@ -30,10 +38,130 @@ export interface Track {
   format: string;
   /** URL to cached cover art, if available */
   cover?: string;
+  /** Plain text lyrics (unsynchronized) */
+  lyrics?: string;
+  /** Time-synced lyrics */
+  syncedLyrics?: SyncedLyric[];
   /** Timestamp when file was created (milliseconds) */
   createdAt: number;
   /** Timestamp when file was last modified (milliseconds) */
   modifiedAt: number;
+}
+
+/**
+ * Parses LRC format lyrics into synced lyrics array.
+ * Format: [mm:ss.xx]lyrics text
+ * Also handles metadata tags like [ar:Artist], [al:Album], etc.
+ */
+function parseLrcLyrics(lrcContent: string): SyncedLyric[] {
+  const lines: SyncedLyric[] = [];
+  const lrcLines = lrcContent.split('\n');
+
+  for (const line of lrcLines) {
+    // Skip metadata lines like [ar:Artist], [al:Album], [ti:Title], [length:...]
+    if (/^\[[a-z]+:/i.test(line)) continue;
+
+    // Match timestamp lines: [mm:ss.xx] or [mm:ss.xxx]
+    const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/);
+    if (match) {
+      const minutes = parseInt(match[1], 10);
+      const seconds = parseInt(match[2], 10);
+      const centiseconds = parseInt(match[3].padEnd(3, '0'), 10);
+      const time = minutes * 60 + seconds + centiseconds / 1000;
+      const text = match[4].trim();
+      if (text) {
+        lines.push({ time, text });
+      }
+    }
+  }
+
+  return lines.sort((a, b) => a.time - b.time);
+}
+
+/**
+ * Checks if content is LRC format (has timestamp tags).
+ */
+function isLrcFormat(content: string): boolean {
+  return /\[\d{2}:\d{2}\.\d{2,3}\]/.test(content);
+}
+
+/**
+ * Extracts lyrics from audio metadata.
+ * Supports both synced (LRC) and unsynced lyrics.
+ */
+function extractLyrics(metadata: IAudioMetadata): { lyrics?: string; syncedLyrics?: SyncedLyric[] } {
+  const result: { lyrics?: string; syncedLyrics?: SyncedLyric[] } = {};
+
+  const nativeTags = metadata.native;
+
+  // Helper to check if value has lyrics
+  const processLyricsTag = (value: unknown): { lyrics?: string; syncedLyrics?: SyncedLyric[] } => {
+    const content = typeof value === 'string' ? value : (value as { lyrics?: string }).lyrics;
+    if (!content) return {};
+
+    if (isLrcFormat(content)) {
+      const parsed = parseLrcLyrics(content);
+      return parsed.length > 0 ? { syncedLyrics: parsed, lyrics: content } : { lyrics: content };
+    }
+    return { lyrics: content };
+  };
+
+  // Try ID3v2 tags (MP3)
+  if (nativeTags['ID3v2.3'] || nativeTags['ID3v2.4']) {
+    const tags = nativeTags['ID3v2.3'] || nativeTags['ID3v2.4'];
+
+    // SYLT - Synchronized lyrics (binary format, skip)
+    // USLT - Unsynchronized lyrics
+    const uslt = tags.find((t: { id: string }) => t.id === 'USLT');
+    if (uslt && 'value' in uslt) {
+      const processed = processLyricsTag(uslt.value);
+      Object.assign(result, processed);
+    }
+
+    // TXXX - Custom tags (sometimes lyrics are stored here)
+    const txxx = tags.filter((t: { id: string }) => t.id === 'TXXX');
+    for (const tag of txxx) {
+      if ('value' in tag) {
+        const val = tag.value as { description: string; value: string };
+        if (val.description?.toLowerCase().includes('lyrics')) {
+          const processed = processLyricsTag(val.value);
+          Object.assign(result, processed);
+          break;
+        }
+      }
+    }
+  }
+
+  // Try Vorbis/FLAC tags
+  if (nativeTags['vorbis']) {
+    const vorbisTags = nativeTags['vorbis'];
+
+    // Check all possible lyrics tag names
+    const lyricsTagNames = ['LYRICS', 'LYRIC', 'SYNCEDLYRICS', 'SYNCED_LYRICS', 'UNSYNCEDLYRICS'];
+    
+    for (const tagName of lyricsTagNames) {
+      const tag = vorbisTags.find((t: { id: string }) => t.id.toUpperCase() === tagName);
+      if (tag && 'value' in tag) {
+        const processed = processLyricsTag(tag.value);
+        if (processed.lyrics || processed.syncedLyrics) {
+          Object.assign(result, processed);
+          break;
+        }
+      }
+    }
+  }
+
+  // Try iTunes-specific tags
+  if (nativeTags['iTunes']) {
+    const itunesTags = nativeTags['iTunes'];
+    const lyricsTag = itunesTags.find((t: { id: string }) => t.id === '©lyr');
+    if (lyricsTag && 'value' in lyricsTag) {
+      const processed = processLyricsTag(lyricsTag.value);
+      Object.assign(result, processed);
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -116,33 +244,38 @@ async function scanRecursively(dir: string): Promise<Track[]> {
       const ext = path.extname(entry.name).toLowerCase();
       if (!AUDIO_EXTENSIONS.includes(ext)) continue;
 
-      try {
-        // Get file stats and metadata
-        const stats = await fsPromises.stat(fullPath);
-        const metadata = await parseFile(fullPath);
+          try {
+            // Get file stats and metadata
+            const stats = await fsPromises.stat(fullPath);
+            const metadata = await parseFile(fullPath);
 
-        // Create stable ID from file path hash
-        const id = crypto.createHash('md5').update(fullPath).digest('hex');
+            // Create stable ID from file path hash
+            const id = crypto.createHash('md5').update(fullPath).digest('hex');
 
-        // Extract and cache cover art
-        const coverUrl = await extractCover(metadata, id);
+            // Extract and cache cover art
+            const coverUrl = await extractCover(metadata, id);
 
-        // Handle birthtime (file creation time)
-        // Some filesystems return 0 or epoch for birthtime
-        const birthtime = stats.birthtimeMs > 0 ? stats.birthtimeMs : stats.mtimeMs;
+            // Extract lyrics from metadata
+            const { lyrics, syncedLyrics } = extractLyrics(metadata);
 
-        tracks.push({
-          id,
-          title: metadata.common.title || path.basename(entry.name, ext),
-          artist: metadata.common.artist || 'Unknown Artist',
-          album: metadata.common.album || 'Unknown Album',
-          duration: metadata.format.duration || 0,
-          path: fullPath,
-          format: ext.replace('.', ''),
-          cover: coverUrl,
-          createdAt: birthtime,
-          modifiedAt: stats.mtimeMs,
-        });
+            // Handle birthtime (file creation time)
+            // Some filesystems return 0 or epoch for birthtime
+            const birthtime = stats.birthtimeMs > 0 ? stats.birthtimeMs : stats.mtimeMs;
+
+            tracks.push({
+              id,
+              title: metadata.common.title || path.basename(entry.name, ext),
+              artist: metadata.common.artist || 'Unknown Artist',
+              album: metadata.common.album || 'Unknown Album',
+              duration: metadata.format.duration || 0,
+              path: fullPath,
+              format: ext.replace('.', ''),
+              cover: coverUrl,
+              lyrics,
+              syncedLyrics,
+              createdAt: birthtime,
+              modifiedAt: stats.mtimeMs,
+            });
       } catch (error) {
         console.error(`Error parsing ${entry.name}:`, error);
       }

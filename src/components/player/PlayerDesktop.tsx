@@ -3,15 +3,18 @@
  */
 
 import { useCallback } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Gauge } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Gauge, Repeat, Repeat1, Shuffle, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { usePlayerStore, NORMAL_SPEED } from '@/stores/usePlayerStore';
 import { useAudioContext } from '@/context/AudioContext';
 import { formatTime } from '@/utils/format';
 import { CoverImage } from '@/components/ui/CoverImage';
-import { SpeedSlider } from '@/components/ui/SpeedSlider';
 
-export const PlayerDesktop = () => {
+interface PlayerDesktopProps {
+  onOpenSpeedModal: () => void;
+}
+
+export const PlayerDesktop = ({ onOpenSpeedModal }: PlayerDesktopProps) => {
   const {
     currentTrack,
     isPlaying,
@@ -19,10 +22,15 @@ export const PlayerDesktop = () => {
     duration,
     volume,
     playbackSpeed,
+    repeatMode,
+    isShuffled,
+    isBuffering,
     setPlaying,
     nextTrack,
     prevTrack,
     setVolume,
+    toggleRepeatMode,
+    toggleShuffle,
   } = usePlayerStore();
 
   const { audioHandle } = useAudioContext();
@@ -49,15 +57,36 @@ export const PlayerDesktop = () => {
           <CoverImage src={currentTrack.cover} alt={currentTrack.album} className="w-full h-full" iconSize={24} />
         </div>
         <div className="overflow-hidden">
-          <h4 className="text-white font-medium truncate">{currentTrack.title}</h4>
-          <p className="text-xs text-aki-muted truncate">{currentTrack.artist}</p>
+          <h4 
+            className="text-white font-medium truncate"
+            style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+            onDoubleClick={() => navigator.clipboard.writeText(currentTrack.title)}
+          >
+            {currentTrack.title}
+          </h4>
+          <p 
+            className="text-xs text-aki-muted truncate"
+            style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+            onDoubleClick={() => navigator.clipboard.writeText(currentTrack.artist)}
+          >
+            {currentTrack.artist}
+          </p>
         </div>
       </div>
 
       {/* Center: Controls and progress */}
       <div className="flex flex-col items-center w-2/5 max-w-xl">
         {/* Controls */}
-        <div className="flex items-center gap-5 mb-2">
+        <div className="flex items-center gap-4 mb-2">
+          <button
+            onClick={toggleShuffle}
+            className={clsx(
+              'p-1.5 rounded transition-colors',
+              isShuffled ? 'text-aki-accent' : 'text-aki-muted hover:text-white'
+            )}
+          >
+            <Shuffle size={16} />
+          </button>
           <button onClick={handlePrevTrack} className="text-aki-muted hover:text-white">
             <SkipBack size={20} />
           </button>
@@ -65,10 +94,25 @@ export const PlayerDesktop = () => {
             onClick={handlePlayPause}
             className="w-9 h-9 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform"
           >
-            {isPlaying ? <Pause fill="black" size={18} /> : <Play fill="black" className="ml-0.5" size={18} />}
+            {isBuffering ? (
+              <Loader2 size={18} className="text-black animate-spin" />
+            ) : isPlaying ? (
+              <Pause fill="black" size={18} />
+            ) : (
+              <Play fill="black" className="ml-0.5" size={18} />
+            )}
           </button>
           <button onClick={handleNextTrack} className="text-aki-muted hover:text-white">
             <SkipForward size={20} />
+          </button>
+          <button
+            onClick={toggleRepeatMode}
+            className={clsx(
+              'p-1.5 rounded transition-colors',
+              repeatMode !== 'off' ? 'text-aki-accent' : 'text-aki-muted hover:text-white'
+            )}
+          >
+            {repeatMode === 'one' ? <Repeat1 size={16} /> : <Repeat size={16} />}
           </button>
         </div>
 
@@ -84,12 +128,20 @@ export const PlayerDesktop = () => {
       {/* Right: Speed and Volume */}
       <div className="flex items-center gap-6 w-1/4 justify-end">
         {/* Speed control */}
-        <div className="flex items-center gap-3 w-40">
+        <button
+          onClick={onOpenSpeedModal}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-aki-800 transition-colors"
+        >
           <Gauge size={18} className={clsx(
             playbackSpeed !== NORMAL_SPEED ? 'text-aki-accent' : 'text-aki-muted'
           )} />
-          <SpeedSlider compact className="flex-1" />
-        </div>
+          <span className={clsx(
+            'text-sm font-mono',
+            playbackSpeed !== NORMAL_SPEED ? 'text-aki-accent' : 'text-aki-muted'
+          )}>
+            {playbackSpeed}%
+          </span>
+        </button>
 
         {/* Volume */}
         <div className="flex items-center gap-2">

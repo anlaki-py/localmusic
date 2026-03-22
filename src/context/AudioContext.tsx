@@ -11,6 +11,7 @@ import {
   useCallback,
   ReactNode,
 } from 'react';
+import { useMediaSession } from '@/hooks/useMediaSession';
 
 /**
  * Imperative handle for audio element control.
@@ -65,6 +66,9 @@ interface AudioProviderProps {
  */
 export const AudioProvider = ({ children }: AudioProviderProps): ReactNode => {
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Initialize Media Session API for lock screen controls
+  useMediaSession();
 
   // Create imperative handle methods
   const seek = useCallback((time: number) => {

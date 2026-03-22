@@ -1,13 +1,11 @@
 /**
  * Server configuration constants.
  * Loads from environment variables with sensible defaults.
+ * Note: dotenv.config() is called in cli.ts before this module loads
  */
 
-import dotenv from 'dotenv';
 import path from 'path';
-
-// Load environment variables from .env file
-dotenv.config();
+import os from 'os';
 
 /**
  * Server port number.
@@ -16,10 +14,20 @@ dotenv.config();
 export const PORT = parseInt(process.env.PORT || '3001', 10);
 
 /**
- * Music library directory path.
- * Must be an absolute path to the music files.
+ * Returns the music library directory path.
+ * Priority: process.env.MUSIC_DIR (from CLI or .env) > ~/Music
+ * 
+ * Uses a function instead of a static export to ensure CLI arguments
+ * are processed before the value is resolved (static exports are hoisted).
+ * 
+ * @returns Absolute path to the music directory
  */
-export const MUSIC_DIR = process.env.MUSIC_DIR || '/sdcard/Music';
+export function getMusicDir(): string {
+  if (process.env.MUSIC_DIR) {
+    return process.env.MUSIC_DIR;
+  }
+  return path.join(os.homedir(), 'Music');
+}
 
 /**
  * Cache directory for cover art and library data.

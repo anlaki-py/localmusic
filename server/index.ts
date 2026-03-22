@@ -6,7 +6,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { PORT, COVERS_DIR } from './constants/config';
+import { PORT, COVERS_DIR, getMusicDir } from './constants/config';
 import { streamRouter } from './routes/stream';
 import { libraryRouter } from './routes/library';
 
@@ -32,5 +32,5 @@ app.get('/health', (req, res) => {
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Server running at http://0.0.0.0:${PORT}`);
-  console.log(`📁 Music directory: ${process.env.MUSIC_DIR || '/sdcard/Music'}`);
+  console.log(`📁 Music directory: ${getMusicDir()}`);
 });

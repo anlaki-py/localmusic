@@ -4,7 +4,7 @@
  */
 
 import { useCallback } from 'react';
-import { Play, MoreVertical } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
 import { Track } from '@/types';
 import { usePlayerStore } from '@/stores/usePlayerStore';
 import { formatTime } from '@/utils/format';
@@ -52,9 +52,9 @@ export const SongList = ({ tracks }: SongListProps) => {
         <span className="text-right">Time</span>
       </div>
 
-      {/* Track list */}
-      {tracks.map((track, index) => {
-        const isCurrent = currentTrack?.id === track.id;
+  {/* Track list */}
+  {tracks.map((track) => {
+    const isCurrent = currentTrack?.id === track.id;
 
         return (
           <div
@@ -66,28 +66,15 @@ export const SongList = ({ tracks }: SongListProps) => {
               ${isCurrent ? 'bg-aki-800/50' : 'hover:bg-aki-800'}
             `}
           >
-            {/* Index / Album art (mobile) / Play icon on hover */}
-            <div className="flex-shrink-0 w-12 h-12 md:w-10 md:h-10 relative flex items-center justify-center">
-              {/* Mobile: Show album art */}
-              <div className="md:hidden w-full h-full">
-                <CoverImage
-                  src={track.cover}
-                  alt={track.album}
-                  className="w-full h-full rounded"
-                  iconSize={20}
-                />
-              </div>
-
-              {/* Desktop: Show index, play icon on hover */}
-              <span className="hidden md:block group-hover:hidden text-aki-muted text-sm">
-                {index + 1}
-              </span>
-              <Play
-                size={16}
-                className="hidden md:group-hover:block text-white absolute"
-                fill="currentColor"
-              />
-            </div>
+        {/* Cover art */}
+        <div className="flex-shrink-0 w-12 h-12 md:w-10 md:h-10">
+          <CoverImage
+            src={track.cover}
+            alt={track.album}
+            className="w-full h-full rounded"
+            iconSize={20}
+          />
+        </div>
 
             {/* Title and artist */}
             <div className="flex-1 min-w-0 flex flex-col justify-center">

@@ -3,6 +3,16 @@
  */
 
 /**
+ * Represents a synced lyric line with timestamp.
+ */
+export interface SyncedLyric {
+  /** Time in seconds */
+  time: number;
+  /** Lyric text */
+  text: string;
+}
+
+/**
  * Represents a single audio track in the library.
  */
 export interface Track {
@@ -22,6 +32,10 @@ export interface Track {
   format: string;
   /** URL to cached cover art, if available */
   cover?: string;
+  /** Plain text lyrics (unsynchronized) */
+  lyrics?: string;
+  /** Time-synced lyrics */
+  syncedLyrics?: SyncedLyric[];
   /** Timestamp when file was created (milliseconds) */
   createdAt: number;
   /** Timestamp when file was last modified (milliseconds) */

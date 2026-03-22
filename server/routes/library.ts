@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { getLibrary } from '../services/scanner';
-import { MUSIC_DIR } from '../constants/config';
+import { getMusicDir } from '../constants/config';
 
 export const libraryRouter = Router();
 
@@ -19,7 +19,7 @@ libraryRouter.get('/library', async (req: Request, res: Response) => {
     const forceRefresh = req.query.refresh === 'true';
 
     // Get library (from cache or scan)
-    const tracks = await getLibrary(MUSIC_DIR, forceRefresh);
+    const tracks = await getLibrary(getMusicDir(), forceRefresh);
 
     res.json(tracks);
   } catch (error) {
