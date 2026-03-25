@@ -12,6 +12,7 @@ export const AUDIO_MIME_TYPES: Record<string, string> = {
   '.flac': 'audio/flac',
   '.wav': 'audio/wav',
   '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
   '.m4a': 'audio/mp4',
   '.aac': 'audio/aac',
 };
